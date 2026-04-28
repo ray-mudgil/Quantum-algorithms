@@ -1,0 +1,77 @@
+import random
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+
+# -----------------------------
+# Parameters
+# -----------------------------
+num_bits = 5
+sim = AerSimulator()
+
+# Player chooses Alice's bits
+print(f"Enter {num_bits} bits for Alice (0 or 1), separated by spaces:")
+alice_bits = list(map(int, input().split()))
+if len(alice_bits) != num_bits or any(b not in [0,1] for b in alice_bits):
+    raise ValueError(f"Please enter exactly {num_bits} bits, each 0 or 1.")
+
+alice_bases = [random.choice(['Z','X']) for _ in range(num_bits)]
+bob_bases = [random.choice(['Z','X']) for _ in range(num_bits)]
+
+# -----------------------------
+# BB84 Protocol with Random Eve
+# -----------------------------
+sifted_alice_key = []
+sifted_bob_key = []
+
+for i in range(num_bits):
+    qc = QuantumCircuit(1,1)
+    
+    # Alice encodes bit
+    if alice_bits[i] == 1:
+        qc.x(0)
+    if alice_bases[i] == 'X':
+        qc.h(0)
+    
+    # Random Eve interception (50% chance)
+    eve_active = random.choice([True, False])
+    if eve_active:
+        eve_base = random.choice(['Z','X'])
+        if eve_base == 'X':
+            qc.h(0)
+        qc.measure(0,0)
+        result = sim.run(qc, shots=1).result()
+        measured = int(list(result.get_counts().keys())[0])
+        
+        # Re-encode measured bit
+        qc = QuantumCircuit(1,1)
+        if measured == 1:
+            qc.x(0)
+        if eve_base == 'X':
+            qc.h(0)
+    
+    # Bob measures
+    if bob_bases[i] == 'X':
+        qc.h(0)
+    qc.measure(0,0)
+    
+    result = sim.run(qc, shots=1).result()
+    bob_bit = int(list(result.get_counts().keys())[0])
+    
+    # Sift key (only keep if bases match)
+    if alice_bases[i] == bob_bases[i]:
+        sifted_alice_key.append(alice_bits[i])
+        sifted_bob_key.append(bob_bit)
+
+# -----------------------------
+# Results
+# -----------------------------
+print("\nAlice bits:       ", alice_bits)
+print("Alice bases:      ", alice_bases)
+print("Bob bases:        ", bob_bases)
+print("Sifted key Alice: ", sifted_alice_key)
+print("Sifted key Bob:   ", sifted_bob_key)
+
+if sifted_alice_key == sifted_bob_key:
+    print("\n🔑 Keys match! Secure communication possible.")
+else:
+    print("\n⚠️ Keys mismatch! Possible eavesdropping detected.")
