@@ -1,0 +1,89 @@
+import random
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+
+sim = AerSimulator()
+N = 10  # keep small for interaction
+
+alice_bits = [random.randint(0, 1) for _ in range(N)]
+alice_bases = [random.choice(['Z', 'X']) for _ in range(N)]
+bob_bases   = [random.choice(['Z', 'X']) for _ in range(N)]
+
+bob_results = []
+eve_info = []
+
+print("\n🕵️ Quantum Spy vs Spy — You Are Eve\n")
+
+for i in range(N):
+    print(f"\nRound {i+1}")
+    print("Alice sends a qubit...")
+
+    qc = QuantumCircuit(1, 1)
+
+    # Alice prepares
+    if alice_bits[i] == 1:
+        qc.x(0)
+    if alice_bases[i] == 'X':
+        qc.h(0)
+
+    intercept = input("Do you intercept? (y/n): ").strip().lower()
+
+    eve_bit = None
+    eve_basis = None
+
+    if intercept == 'y':
+        eve_basis = input("Choose basis for Eve (Z/X): ").strip().upper()
+        if eve_basis == 'X':
+            qc.h(0)
+        qc.measure(0, 0)
+
+        res = sim.run(qc, shots=1).result()
+        eve_bit = int(list(res.get_counts().keys())[0])
+        eve_info.append((i, eve_bit, eve_basis))
+
+        print(f"🕵️ You measured: {eve_bit} in {eve_basis} basis")
+
+        # Reprepare for Bob
+        qc = QuantumCircuit(1, 1)
+        if eve_bit == 1:
+            qc.x(0)
+        if eve_basis == 'X':
+            qc.h(0)
+    else:
+        eve_info.append((i, None, None))
+
+    # Bob measures
+    if bob_bases[i] == 'X':
+        qc.h(0)
+    qc.measure(0, 0)
+
+    res = sim.run(qc, shots=1).result()
+    bob_bit = int(list(res.get_counts().keys())[0])
+    bob_results.append(bob_bit)
+
+# --- Sifting ---
+sifted = [i for i in range(N) if alice_bases[i] == bob_bases[i]]
+
+alice_key = [alice_bits[i] for i in sifted]
+bob_key   = [bob_results[i] for i in sifted]
+
+errors = sum(a != b for a, b in zip(alice_key, bob_key))
+error_rate = errors / len(alice_key) if alice_key else 0
+
+print("\n📢 Alice & Bob compare bases...")
+print(f"Alice key: {alice_key}")
+print(f"Bob key:   {bob_key}")
+print(f"Errors: {errors} / {len(alice_key)} → rate {error_rate:.2f}")
+
+if error_rate > 0.25:
+    print("\n🚨 You were detected! Eve loses.")
+else:
+    print("\n😈 You stayed hidden. Eve wins!")
+
+# Reveal what you learned
+known = []
+for i, bit, basis in eve_info:
+    if bit is not None and i in sifted and basis == alice_bases[i]:
+        known.append(bit)
+
+print(f"\n🕵️ Bits you correctly learned from the final key: {known}")
