@@ -1,0 +1,50 @@
+import numpy as np
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+
+sim = AerSimulator()
+
+def run_and_counts(qc, shots=1024):
+    qc.measure_all()
+    result = sim.run(qc, shots=shots).result()
+    return result.get_counts()
+
+qc1 = QuantumCircuit(2)
+
+qc1.cx(0, 1)
+
+counts1 = run_and_counts(qc1)
+
+qc2 = QuantumCircuit(2)
+
+qc2.x(0)
+
+qc2.cx(0, 1)   
+
+counts2 = run_and_counts(qc2)
+
+qc3 = QuantumCircuit(2)
+qc3.h(0)     
+qc3.cx(0, 1)  
+
+counts3 = run_and_counts(qc3)
+
+qc4 = QuantumCircuit(2)
+
+qc4.x(0)
+qc4.h(0)
+qc4.cx(0, 1)
+
+counts4 = run_and_counts(qc4)
+
+print("🔹 Cloning |0> results:")
+print(counts1)
+
+print("\n🔹 Cloning |1> results:")
+print(counts2)
+
+print("\n🔹 Cloning |+> results:")
+print(counts3)
+
+print("\n🔹 Cloning |-> results:")
+print(counts4)
