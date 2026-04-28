@@ -1,0 +1,85 @@
+#Rayaan Mudgil
+
+import numpy as np
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+from qiskit.quantum_info import Statevector, partial_trace, state_fidelity
+
+sim = AerSimulator(method="statevector")
+
+# -------------------------
+# Random state |ψ>
+# -------------------------
+print("🎯 Choose your qubit state using Bloch sphere angles")
+
+try:
+    theta_deg = float(input("Enter θ in degrees [0–180]: "))
+    phi_deg = float(input("Enter φ in degrees [0–360]: "))
+
+    theta = np.deg2rad(theta_deg)
+    phi = np.deg2rad(phi_deg)
+
+    if not (0 <= theta <= np.pi):
+        raise ValueError("Theta out of range")
+    if not (0 <= phi <= 2*np.pi):
+        raise ValueError("Phi out of range")
+
+except:
+    print("Invalid input! Using default state |+⟩")
+    theta = np.pi / 2
+    phi = 0
+
+
+print("🎯 Teleporting the qubit state")
+print(f"theta = {theta:.3f}, phi = {phi:.3f}")
+
+# Original statevector
+psi = Statevector([
+    np.cos(theta/2),
+    np.exp(1j * phi) * np.sin(theta/2)
+])
+
+# -------------------------
+# Build circuit
+# -------------------------
+qc = QuantumCircuit(3)
+
+# Prepare |ψ> on qubit 0
+qc.ry(theta, 0)
+qc.rz(phi, 0)
+
+# Create Bell pair (1,2)
+qc.h(1)
+qc.cx(1, 2)
+
+# Teleportation steps
+qc.cx(0, 1)
+qc.h(0)
+
+# 🔥 Instead of measurement + classical control,
+# apply equivalent quantum-controlled corrections
+
+qc.cx(1, 2)   # acts like X correction
+qc.cz(0, 2)   # acts like Z correction
+
+# -------------------------
+# Get final state
+# -------------------------
+qc.save_statevector()
+result = sim.run(qc).result()
+state = Statevector(result.get_statevector())
+
+# -------------------------
+# Extract Bob's qubit
+# -------------------------
+rho_bob = partial_trace(state, [0, 1])
+
+# -------------------------
+# Compute fidelity
+# -------------------------
+fidelity = state_fidelity(rho_bob, psi)
+
+print("\n📦 Bob's reduced density matrix:")
+print(np.round(rho_bob.data, 3))
+
+print(f"\n✅ Teleportation fidelity: {fidelity:.6f}")
