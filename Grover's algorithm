@@ -1,0 +1,73 @@
+import random
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+import math
+
+# --- Functions ---
+
+def oracle_multiple_targets(n, targets):
+    """Oracle that marks multiple target states."""
+    oracle = QuantumCircuit(n)
+    for target in targets:
+        for i, bit in enumerate(target):
+            if bit == '0':
+                oracle.x(i)
+        oracle.h(n-1)
+        oracle.mcx(list(range(n-1)), n-1)
+        oracle.h(n-1)
+        for i, bit in enumerate(target):
+            if bit == '0':
+                oracle.x(i)
+    return oracle
+
+def diffuser(n):
+    """Grover diffusion operator."""
+    qc = QuantumCircuit(n)
+    qc.h(range(n))
+    qc.x(range(n))
+    qc.h(n-1)
+    qc.mcx(list(range(n-1)), n-1)
+    qc.h(n-1)
+    qc.x(range(n))
+    qc.h(range(n))
+    return qc
+
+def grover_random_targets(n, num_targets):
+    """Build Grover circuit with a user-specified number of random targets."""
+    N = 2**n
+    all_states = [format(i, f'0{n}b') for i in range(N)]
+    targets = random.sample(all_states, num_targets)
+    print("Randomly selected targets:", targets)
+
+    qc = QuantumCircuit(n, n)
+    qc.h(range(n))  # uniform superposition
+
+    oracle = oracle_multiple_targets(n, targets)
+    diff = diffuser(n)
+
+    # Optimal iterations for multiple targets
+    iters = max(1, int(math.floor((math.pi/4) * math.sqrt(N / num_targets))))
+
+    for _ in range(iters):
+        qc.compose(oracle, inplace=True)
+        qc.compose(diff, inplace=True)
+
+    qc.measure(range(n), range(n))
+    return qc
+
+# --- Main Program ---
+
+n = 3  # number of qubits, you can change this btw
+
+num_targets = 1
+
+qc = grover_random_targets(n, num_targets)
+
+sim = AerSimulator()
+result = sim.run(qc, shots=1024).result()
+counts = result.get_counts()
+
+print(qc.draw(output='text'))
+
+
+print("Measurement counts:", counts)
