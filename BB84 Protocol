@@ -5,7 +5,7 @@ from qiskit_aer import AerSimulator
 # -----------------------------
 # Parameters
 # -----------------------------
-num_bits = 5
+num_bits = 5 #You can change this as well
 sim = AerSimulator()
 
 # Player chooses Alice's bits
