@@ -5,9 +5,9 @@ from qiskit.quantum_info import Statevector, partial_trace, state_fidelity
 
 sim = AerSimulator(method="statevector")
 
-# -------------------------
+# ------------------------
 # Random state |ψ>
-# -------------------------
+# ------------------------
 print("🎯 Choose your qubit state using Bloch sphere angles")
 
 try:
