@@ -1,3 +1,5 @@
+# Note: You have to install matplotlib pyplatexnc to visualize the energy map
+
 import numpy as np
 import matplotlib.pyplot as plt
 
