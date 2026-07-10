@@ -1,0 +1,258 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+from scipy.optimize import minimize
+
+from qiskit.circuit import QuantumCircuit, ParameterVector
+from qiskit.primitives import StatevectorEstimator
+from qiskit.quantum_info import SparsePauliOp, Statevector
+
+
+
+theta = ParameterVector("θ", 18)
+
+
+
+ansatz = QuantumCircuit(3)
+
+
+for layer in range(3):
+
+    # Rotation gates
+    for q in range(3):
+
+        ansatz.ry(
+            theta[layer*6 + q],
+            q
+        )
+
+        ansatz.rx(
+            theta[layer*6 + q + 3],
+            q
+        )
+
+
+    # Full entanglement
+    ansatz.cx(0,1)
+    ansatz.cx(1,2)
+    ansatz.cx(0,2)
+
+
+print("ANSATZ")
+print(ansatz.draw())
+
+
+
+H = SparsePauliOp.from_list([
+
+    ("ZII", 1),
+    ("IZI", 1),
+    ("IIZ", 1),
+
+    ("XXI", 1),
+    ("YYI", 1),
+
+    ("IXX", 1),
+    ("IYY", 1)
+
+])
+
+
+
+matrix = H.to_matrix()
+
+eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+
+exact_ground_energy = eigenvalues[0]
+
+
+print("\nExact eigenvalues:")
+
+for i,e in enumerate(eigenvalues):
+    print(f"E{i}: {e:.12f}")
+
+
+
+
+
+estimator = StatevectorEstimator()
+
+
+
+
+
+current_history = []
+
+
+def energy(params):
+
+    job = estimator.run([
+        (ansatz, H, params)
+    ])
+
+    value = job.result()[0].data.evs
+
+    current_history.append(float(value))
+
+    return float(value)
+
+
+
+
+
+best_result = None
+best_energy = np.inf
+best_history = None
+
+
+for run in range(30):
+
+    print(f"\nStarting run {run+1}/30")
+
+
+    current_history = []
+
+
+    initial = np.random.uniform(
+        0,
+        2*np.pi,
+        size=18
+    )
+
+
+    result = minimize(
+
+        energy,
+
+        x0=initial,
+
+        method="COBYLA",
+
+        options={
+            "maxiter":2000
+        }
+
+    )
+
+
+    print(
+        f"Energy found: {result.fun:.12f}"
+    )
+
+
+    if result.fun < best_energy:
+
+        best_energy = result.fun
+
+        best_result = result
+
+        best_history = current_history.copy()
+
+
+
+result = best_result
+
+
+error = abs(
+    result.fun - exact_ground_energy
+)
+
+
+print("\n")
+print("="*60)
+print("                 FINAL VQE RESULT")
+print("="*60)
+
+
+print(
+    f"Exact ground energy : {exact_ground_energy:.12f}"
+)
+
+print(
+    f"VQE energy          : {result.fun:.12f}"
+)
+
+print(
+    f"Absolute error      : {error:.12e}"
+)
+
+print(
+    f"Optimizer success   : {result.success}"
+)
+
+print(
+    f"Message             : {result.message}"
+)
+
+
+
+if error < 1e-6:
+
+    print("\n🎉 VQE SUCCESS!")
+
+elif error < 1e-3:
+
+    print("\n✅ Extremely close!")
+
+else:
+
+    print("\n⚠️ Needs more improvement")
+
+
+
+
+
+print("\nOptimal parameters:")
+
+for i,value in enumerate(result.x):
+
+    print(
+        f"θ{i} = {value:.6f}"
+    )
+
+
+
+
+
+final_circuit = ansatz.assign_parameters(
+    result.x
+)
+
+
+state = Statevector.from_instruction(
+    final_circuit
+)
+
+
+print("\nFinal probabilities:")
+
+for basis,prob in state.probabilities_dict().items():
+
+    print(
+        f"|{basis}> : {prob*100:.3f}%"
+    )
+
+
+
+
+plt.figure(figsize=(8,4))
+
+plt.plot(
+    best_history
+)
+
+plt.xlabel(
+    "Optimizer evaluations"
+)
+
+plt.ylabel(
+    "Energy"
+)
+
+plt.title(
+    "3-Qubit VQE Convergence"
+)
+
+plt.grid()
+
+plt.show()
