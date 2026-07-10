@@ -1,0 +1,423 @@
+# Note: You have to install matplotlib pyplatexnc to visualize the energy map
+
+
+import numpy as np
+from qiskit.primitives import StatevectorEstimator
+from scipy.optimize import minimize
+from qiskit.circuit import QuantumCircuit, ParameterVector
+from qiskit.quantum_info import SparsePauliOp
+import matplotlib.pyplot as plt
+
+
+
+# 4 qubits
+NUM_QUBITS = 4
+
+# 3 layers
+NUM_LAYERS = 4
+
+# Each layer has:
+#   Ry on every qubit  -> 4 params
+#   Rx on every qubit  -> 4 params
+#
+# Total = 8 parameters/layer
+# 4 layers = 32 parameters
+
+theta = ParameterVector("θ", 32)
+
+
+
+
+ansatz = QuantumCircuit(NUM_QUBITS)
+
+parameter_index = 0
+
+for layer in range(NUM_LAYERS):
+
+    # ------------------------
+    # Ry Rotations
+    # ------------------------
+
+    for qubit in range(NUM_QUBITS):
+
+        ansatz.ry(
+            theta[parameter_index],
+            qubit
+        )
+
+        parameter_index += 1
+
+
+    # ------------------------
+    # Rx Rotations
+    # ------------------------
+
+    for qubit in range(NUM_QUBITS):
+
+        ansatz.rx(
+            theta[parameter_index],
+            qubit
+        )
+
+        parameter_index += 1
+
+
+    # ------------------------
+    # Full Entanglement
+    # ------------------------
+
+    ansatz.cx(0,1)
+    ansatz.cx(1,2)
+    ansatz.cx(2,3)
+
+    ansatz.cx(0,2)
+    ansatz.cx(1,3)
+
+    ansatz.barrier()
+
+
+print("="*60)
+print("4-QUBIT ANSATZ")
+print("="*60)
+
+print(ansatz.draw())
+
+
+
+#
+# Heisenberg Spin Chain
+#
+# H =
+#
+# XXII
+# YYII
+# ZZII
+#
+# IXXI
+# IYYI
+# IZZI
+#
+# IIXX
+# IIYY
+# IIZZ
+#
+
+terms = []
+
+pairs = [
+
+    (0,1),
+    (1,2),
+    (2,3)
+
+]
+
+
+for a,b in pairs:
+
+    for pauli in ["X","Y","Z"]:
+
+        label = ["I"]*NUM_QUBITS
+
+        label[a] = pauli
+        label[b] = pauli
+
+        terms.append(
+
+            ("".join(label),1.0)
+
+        )
+
+
+H = SparsePauliOp.from_list(terms)
+
+
+print("\n")
+print("="*60)
+print("HAMILTONIAN")
+print("="*60)
+
+print(H)
+
+
+
+
+matrix = H.to_matrix()
+
+eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+
+exact_ground_energy = eigenvalues[0]
+
+
+print("\n")
+print("="*60)
+print("EXACT EIGENVALUES")
+print("="*60)
+
+for i,e in enumerate(eigenvalues):
+
+    print(f"E{i:2d} = {e:.10f}")
+
+
+print("\nExact Ground-State Energy")
+
+print(exact_ground_energy)
+
+
+
+print("\n")
+print("="*60)
+
+print("Summary")
+
+print("="*60)
+
+print(f"Number of qubits      : {NUM_QUBITS}")
+print(f"Circuit parameters    : {len(theta)}")
+print(f"Hamiltonian terms     : {len(terms)}")
+print(f"Hilbert space size    : {2**NUM_QUBITS}")
+print(f"Matrix size           : {2**NUM_QUBITS} x {2**NUM_QUBITS}")
+
+
+
+
+estimator = StatevectorEstimator()
+
+
+
+current_history = []
+
+
+def energy(parameters):
+
+    """
+    Calculates:
+    
+    E(theta)=<psi(theta)|H|psi(theta)>
+    
+    """
+
+    job = estimator.run([
+        (
+            ansatz,
+            H,
+            parameters
+        )
+    ])
+
+
+    value = job.result()[0].data.evs
+
+
+    current_history.append(
+        float(value)
+    )
+
+
+    return float(value)
+
+
+
+
+
+NUM_RUNS = 20
+
+best_result = None
+
+best_energy = np.inf
+
+best_history = None
+
+
+
+for run in range(NUM_RUNS):
+
+
+    print("\n" + "="*50)
+
+    print(
+        f"Starting VQE run {run+1}/{NUM_RUNS}"
+    )
+
+
+    # reset convergence history
+
+    current_history = []
+
+
+    # random starting angles
+
+    initial_parameters = np.random.uniform(
+        0,
+        2*np.pi,
+        size=len(theta)
+    )
+
+
+
+    result = minimize(
+
+        energy,
+
+        x0=initial_parameters,
+
+        method="COBYLA",
+
+        options={
+
+            "maxiter":3000,
+            "tol":1e-6
+
+        }
+
+    )
+
+
+    print(
+        f"Energy found: {result.fun:.12f}"
+    )
+
+
+    print(
+        "Success:",
+        result.success
+    )
+
+
+
+    # keep best solution
+
+    if result.fun < best_energy:
+
+
+        best_energy = result.fun
+
+        best_result = result
+
+        best_history = current_history.copy()
+
+
+
+
+
+error = abs(
+    best_result.fun - exact_ground_energy
+)
+
+
+print("\n")
+
+print("="*60)
+
+print("              VQE FINAL RESULT")
+
+print("="*60)
+
+
+
+print(
+    f"Exact ground energy : {exact_ground_energy:.12f}"
+)
+
+
+print(
+    f"VQE energy          : {best_result.fun:.12f}"
+)
+
+
+print(
+    f"Absolute error      : {error:.12e}"
+)
+
+
+print(
+    "Optimizer success   :",
+    best_result.success
+)
+
+
+print(
+    "Message             :",
+    best_result.message
+)
+
+
+
+if error < 1e-6:
+
+    print("\n🎉 VQE SUCCESS!")
+
+elif error < 1e-3:
+
+    print("\n✅ Very close!")
+
+else:
+
+    print("\n⚠️ Needs improvement")
+
+
+
+
+
+print("\nOptimal parameters:")
+
+
+for i,value in enumerate(best_result.x):
+
+    print(
+        f"θ{i} = {value:.6f}"
+    )
+
+
+
+import matplotlib.pyplot as plt
+
+
+plt.figure(figsize=(8,4))
+
+
+plt.plot(
+    best_history
+)
+
+
+plt.xlabel(
+    "Optimizer evaluations"
+)
+
+
+plt.ylabel(
+    "Energy"
+)
+
+
+plt.title(
+    "4-Qubit VQE Energy Convergence"
+)
+
+
+plt.grid()
+
+plt.show()
+
+from qiskit.quantum_info import Statevector
+
+exact_ground_state = Statevector(
+    eigenvectors[:,0]
+)
+
+vqe_state = Statevector.from_instruction(
+    ansatz.assign_parameters(best_result.x)
+)
+
+
+fidelity = abs(
+    exact_ground_state.inner(vqe_state)
+)**2
+
+
+print("==============================")
+print("GROUND STATE FIDELITY")
+print("==============================")
+
+print(fidelity)
