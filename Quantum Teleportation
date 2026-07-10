@@ -1,7 +1,12 @@
+# Note: You have to install matplotlib pyplatexnc to visualize the energy map
+
+
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit.quantum_info import Statevector, partial_trace, state_fidelity
+from qiskit.visualization import plot_bloch_multivector
+
 
 sim = AerSimulator(method="statevector")
 
@@ -81,3 +86,17 @@ print("\n📦 Bob's reduced density matrix:")
 print(np.round(rho_bob.data, 3))
 
 print(f"\n✅ Teleportation fidelity: {fidelity:.6f}")
+
+
+
+
+#Paste this in a different cell
+
+
+print("\n\nTeleportation fidelity:", state_fidelity(psi, psi))
+psi.draw('text')
+
+
+#Paste this in another different cell
+
+plot_bloch_multivector(psi)
