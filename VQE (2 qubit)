@@ -1,0 +1,118 @@
+# Note: You have to install matplotlib pyplatexnc to visualize the energy map
+
+import numpy as np
+from scipy.optimize import minimize
+
+from qiskit.circuit import QuantumCircuit, ParameterVector
+from qiskit.primitives import StatevectorEstimator
+from qiskit.quantum_info import SparsePauliOp, Statevector
+from qiskit.visualization import plot_bloch_multivector
+import matplotlib.pyplot as plt
+
+
+theta = ParameterVector("θ", 4)
+
+ansatz = QuantumCircuit(2)
+
+ansatz.ry(theta[0], 0)
+ansatz.ry(theta[1], 1)
+
+# Entangle them
+ansatz.cx(0, 1)
+
+ansatz.rx(theta[2], 0)
+ansatz.rx(theta[3], 1)
+
+print("Ansatz:")
+print(ansatz.draw())
+
+
+H = SparsePauliOp.from_list([
+    ("ZI", 1),
+    ("IZ", 1),
+    ("XX", 1),
+    ("YY", 1)
+])
+
+print("\nHamiltonian:")
+print(H)
+
+
+estimator = StatevectorEstimator()
+
+
+energy_history = []
+
+
+def energy(params):
+
+    job = estimator.run([
+        (ansatz, H, params)
+    ])
+
+    value = job.result()[0].data.evs
+
+    energy_history.append(value)
+
+    return value
+
+initial_guess = np.random.uniform(
+    0,
+    2*np.pi,
+    size=4
+)
+
+result = minimize(
+    energy,
+    x0=initial_guess,
+    method="COBYLA"
+)
+
+
+print("\n" + "="*50)
+print("VQE RESULTS")
+print("="*50)
+
+print("\nOptimal parameters:")
+
+for i, value in enumerate(result.x):
+    print(f"θ{i} = {value:.6f} rad ({np.degrees(value):.2f}°)")
+
+print()
+
+print(f"Ground-state energy : {result.fun:.12f}")
+print(f"Iterations          : {result.nfev}")
+print(f"Success             : {result.success}")
+
+
+final_circuit = ansatz.assign_parameters(result.x)
+
+state = Statevector.from_instruction(final_circuit)
+
+print("\nFinal quantum state:")
+
+print(state)
+
+print("\nMeasurement probabilities:")
+
+probs = state.probabilities_dict()
+
+for basis, prob in probs.items():
+    print(f"|{basis}> : {prob*100:.2f}%")
+
+plot_bloch_multivector(state)
+plt.show()
+
+plt.figure(figsize=(8,4))
+
+plt.plot(energy_history, marker='o')
+
+plt.title("VQE Optimization")
+
+plt.xlabel("Iteration")
+
+plt.ylabel("Energy")
+
+plt.grid(True)
+
+plt.show()
