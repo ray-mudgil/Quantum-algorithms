@@ -1,0 +1,61 @@
+import numpy as np
+from scipy.optimize import minimize
+
+from qiskit.quantum_info import Statevector
+from qiskit.circuit import QuantumCircuit, Parameter
+from qiskit.primitives import StatevectorEstimator
+from qiskit.quantum_info import SparsePauliOp
+
+theta = Parameter("θ")
+
+
+ansatz = QuantumCircuit(1)
+ansatz.ry(theta, 0)
+
+
+H = SparsePauliOp.from_list([
+    ("Z", 1)
+])
+
+
+estimator = StatevectorEstimator()
+
+
+def energy(params):
+
+    job = estimator.run([
+        (ansatz, H, params)
+    ])
+
+    result = job.result()
+
+    return result[0].data.evs
+
+result = minimize(
+    energy,
+    x0=[0.5],
+    method="COBYLA"
+)
+
+print("=" * 50)
+print("           VQE RESULTS")
+print("=" * 50)
+
+print(f"Optimal rotation angle (θ): {result.x[0]:.6f} radians")
+print(f"                           = {np.degrees(result.x[0]):.2f}°")
+
+print()
+
+print(f"Estimated ground-state energy: {result.fun:.12f}")
+print("Exact ground-state energy:     -1.000000000000")
+
+error = abs(result.fun + 1)
+
+print(f"Absolute error: {error:.2e}")
+
+print()
+
+if error < 1e-6:
+    print("🎉 Success! VQE found the true ground state.")
+else:
+    print("⚠️ Optimization did not fully converge.")
