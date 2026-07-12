@@ -1,0 +1,38 @@
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+import random
+
+qc = QuantumCircuit(2,2)
+
+qc.h(0)
+qc.cx(0,1)
+
+list = ["01", "10", "11"]
+
+message = random.choice(list)
+print(message)
+
+if message == "01":
+    qc.x(0)
+if message == "10":
+    qc.z(0)
+
+if message == "11":
+    qc.x(0)
+    qc.z(0)
+
+qc.cx(0,1)
+qc.h(0)
+qc.measure([0,1], [0,1])
+
+sim = AerSimulator()
+result = sim.run(qc, shots=1000).result()
+counts = result.get_counts()
+
+measured = max(counts, key=counts.get)
+
+print("\nThe original counts represents the result as c1 then c0 even though we use c0 then c1")
+
+print("\nLet's see if it matches \n")
+
+print("\nReversed output (to make sense):", measured[::-1])
