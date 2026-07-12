@@ -1,0 +1,93 @@
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+import random
+
+sim = AerSimulator()
+
+# ---------------- ORACLE ----------------
+def dj_oracle(qc, n, oracle_type):
+
+    # CONSTANT ORACLE (stable, no randomness)
+    if oracle_type == "constant":
+        # either do nothing OR always flip (choose one fixed behavior)
+        if random.choice([0, 1]):
+            qc.x(n)
+
+    # BALANCED ORACLE (FIXED: subset-based, NOT full parity)
+    elif oracle_type == "balanced":
+        # use only a subset of qubits (prevents 1111 collapse)
+        qc.cx(0, n)
+        qc.cx(1, n)
+
+
+# ---------------- CIRCUIT BUILDER ----------------
+def build_circuit(n, oracle_type):
+    qc = QuantumCircuit(n + 1, n)
+
+    # ancilla |-> state
+    qc.x(n)
+    qc.h(n)
+
+    # superposition
+    for i in range(n):
+        qc.h(i)
+
+    # oracle
+    dj_oracle(qc, n, oracle_type)
+
+    # interference
+    for i in range(n):
+        qc.h(i)
+
+    # measure input register only
+    qc.measure(range(n), range(n))
+
+    return qc
+
+
+# ---------------- GAME SETTINGS ----------------
+n = 4
+rounds = 10
+score = 0
+
+print("🎮 QUANTUM BOSS FIGHT\n")
+
+# ---------------- GAME LOOP ----------------
+for level in range(1, rounds + 1):
+
+    print(f"\n⚔️ LEVEL {level}")
+
+    oracle_type = random.choice(["constant", "balanced"])
+    qc = build_circuit(n, oracle_type)
+
+    result = sim.run(qc, shots=1000).result()
+    counts = result.get_counts()
+
+    print("📊 Measurement:", counts)
+
+    # ---------------- INTERPRETATION RULE ----------------
+    if len(counts) == 1 and "0"*n in counts:
+        prediction = "constant"
+    else:
+        prediction = "balanced"
+
+    guess = input("🧠 Guess (constant/balanced): ").strip().lower()
+
+    if guess == prediction:
+        print("✅ Correct! Boss defeated.")
+        score += 1
+    else:
+        print(f"❌ Wrong! It was {prediction}")
+
+    print(f"🔥 Score: {score}/{level}")
+
+# ---------------- END GAME ----------------
+print("\n🏁 GAME OVER")
+print(f"Final Score: {score}/{rounds}")
+
+if score >= rounds * 0.7:
+    print("🏆 Quantum Master Rank!")
+    if score == rounds:
+        print("You are an aura farmer")
+else:
+    print("💀 Keep training the Oracle...")
