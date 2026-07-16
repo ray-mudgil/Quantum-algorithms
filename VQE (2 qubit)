@@ -1,4 +1,4 @@
-# Note: You have to install matplotlib pyplatexenc to visualize the energy map
+# Note: You have to install matplotlib pylatexenc to visualize the energy map
 
 
 import numpy as np
