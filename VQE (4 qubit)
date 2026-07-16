@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 # 4 qubits
 NUM_QUBITS = 4
 
-# 3 layers
+# 4 layers
 NUM_LAYERS = 4
 
 # Each layer has:
